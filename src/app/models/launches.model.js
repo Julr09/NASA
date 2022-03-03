@@ -14,6 +14,16 @@ async function saveLaunches(launch) {
   });
 }
 
+async function insertMany(launches) {
+  await launchesDb.insertMany(launches, (err, docs) => {
+    if (err || !docs) {
+      console.log(err);
+      return;
+    }
+    console.log('Launches loaded');
+  });
+}
+
 async function populateLaunches() {
   console.log('Downloading launch data');
   const response = await axios.post('https://api.spacexdata.com/v4/launches/query', {
@@ -43,24 +53,19 @@ async function populateLaunches() {
   }
 
   const launchDocs = response.data.docs;
-
-  for (const launchDoc of launchDocs) {
-    const { payloads } = launchDoc;
-    const customers = payloads.flatMap((payload) => payload.customers);
-
-    const launch = {
+  const launches = launchDocs.map((launchDoc) => (
+    {
       flightNumber: launchDoc.flight_number,
       mission: launchDoc.name,
       rocket: launchDoc.rocket.name,
       launchDate: launchDoc.date_local,
       upcoming: launchDoc.upcoming,
       success: launchDoc.success,
-      customers,
-    };
-    console.log(`${launch.flightNumber} ${launch.mission}`);
+      customers: launchDoc.payloads.flatMap((payload) => payload.customers),
+    }
+  ));
 
-    await saveLaunches(launch);
-  }
+  await insertMany(launches);
 }
 
 async function getLatestFlightNumber() {
@@ -72,6 +77,7 @@ async function getLatestFlightNumber() {
   }
   return latestLaunch.flightNumber;
 }
+
 // End of helper functions
 async function loadLaunchesData() {
   const firstLaunch = await findLaunch({
